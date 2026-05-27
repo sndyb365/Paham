@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PAHAM Lab - Selaras Capstone Pertemuan 2</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root { 
+            --primary: #6d5dfc;
+            --primary-2: #18a8ff;
+            --secondary: #ffb703;
+            --pink: #ff5fa2;
+            --mint: #28d7a1;
+            --bg: #fff8ec;
+            --text: #18233a; 
+            --sub: #64748b; 
+            --success: #10b981; 
+            --error: #f43f5e;
+            --warning: #ffd166; 
+            --card-bg: rgba(255, 255, 255, 0.86);
+            --accent: #8b5cf6;
+            --drawer-width: 305px;
+            --radius: 30px;
+            --shadow: 0 24px 60px -28px rgba(35, 45, 95, .35);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
+        html { scroll-behavior: smooth; }
+        body { 
+            color: var(--text); width: 100%; min-height: 100vh;
+            display: flex; flex-direction: column; overflow-x: hidden;
+            background:
+                radial-gradient(circle at 8% 12%, rgba(255, 183, 3, .35) 0 120px, transparent 121px),
+                radial-gradient(circle at 92% 18%, rgba(24, 168, 255, .24) 0 150px, transparent 151px),
+                radial-gradient(circle at 80% 84%, rgba(255, 95, 162, .18) 0 180px, transparent 181px),
+                linear-gradient(135deg, #fffaf0 0%, #eff8ff 48%, #fff0f7 100%);
+        }
+        body::before {
+            content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+            background-image:
+                linear-gradient(rgba(109,93,252,.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(109,93,252,.055) 1px, transparent 1px);
+            background-size: 34px 34px;
+            mask-image: linear-gradient(to bottom, rgba(0,0,0,.9), rgba(0,0,0,.15));
+        }
+
+        #trialBanner { 
+            background: linear-gradient(90deg, #ffe16a, #ffb703, #ff8fab); color: #3a2500;
+            padding: 12px 16px; text-align: center; font-weight: 900; font-size: .92rem;
+            letter-spacing: .2px; box-shadow: 0 8px 24px rgba(255, 183, 3, .25);
+        }
+        #trialCount { background:#fff; padding: 4px 10px; border-radius:999px; margin:0 2px; }
+
+        nav { 
+            width: min(1180px, calc(100% - 32px)); margin: 16px auto 0; padding: 0 18px 0 24px; height: 74px; 
+            display: flex; justify-content: space-between; align-items: center; position: sticky; top: 14px; z-index: 1000;
+            background: rgba(255,255,255,.78); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,.8);
+            border-radius: 24px; box-shadow: var(--shadow);
+        }
+        .logo { font-weight: 900; font-size: 1.45rem; color: var(--primary); letter-spacing: -1px; display:flex; align-items:center; gap:8px; }
+        .logo::before { content:"🧠"; width:40px; height:40px; display:grid; place-items:center; background:#f3efff; border-radius:15px; box-shadow: inset 0 -4px 0 rgba(109,93,252,.12); }
+        .nav-links { display: flex; gap: 10px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--sub); font-size: .92rem; font-weight: 850; cursor: pointer; transition: .25s; padding: 12px 15px; border-radius: 16px; }
+        .nav-links a:hover, .nav-links a.active { color: var(--primary); background: #f3efff; transform: translateY(-1px); }
+        .btn-login-nav { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: white !important; padding: 13px 20px !important; border-radius: 18px; box-shadow: 0 14px 28px -14px rgba(109,93,252,.75); }
+        .hamburger { display: none; flex-direction: column; gap: 6px; cursor: pointer; padding: 10px; z-index: 1100; }
+        .hamburger span { display: block; width: 28px; height: 3.5px; background: var(--text); border-radius: 4px; transition: .35s; }
+
+        .drawer-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .45); display: none; z-index: 1050; backdrop-filter: blur(8px); }
+        .side-drawer { position: fixed; top: 0; right: -340px; width: var(--drawer-width); height: 100%; background: #fffaf2; z-index: 1060; transition: .42s cubic-bezier(.4,0,.2,1); display: flex; flex-direction: column; padding: 48px 26px; box-shadow: -15px 0 40px rgba(0,0,0,.12); border-left: 4px solid #fff; }
+        .side-drawer.open { right: 0; }
+        .drawer-links { display: flex; flex-direction: column; gap: 16px; margin-top: 34px; }
+        .drawer-links a { text-decoration: none; color: var(--text); font-weight: 850; font-size: 1.05rem; display: flex; align-items: center; gap: 13px; cursor: pointer; background:#fff; padding: 16px; border-radius:20px; box-shadow: 0 10px 24px -18px rgba(0,0,0,.25); }
+
+        main { flex-grow: 1; width: 100%; padding: 34px 6% 60px; display: flex; flex-direction: column; align-items: center; }
+        .page { display: none; width: 100%; max-width: 1180px; margin: 0 auto; animation: slideIn .5s ease-out forwards; }
+        .page.active { display: flex; flex-direction: column; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+        .hero-kids { position: relative; overflow: hidden; margin-bottom: 24px; padding: 28px; border-radius: 34px; background: linear-gradient(135deg, rgba(109,93,252,.96), rgba(24,168,255,.88)); color: white; box-shadow: var(--shadow); }
+        .hero-kids::before, .hero-kids::after { content:""; position:absolute; border-radius:999px; background:rgba(255,255,255,.18); }
+        .hero-kids::before { width:180px; height:180px; right:-55px; top:-65px; }
+        .hero-kids::after { width:120px; height:120px; left:48%; bottom:-60px; }
+        .hero-kids h1 { position:relative; font-size: clamp(1.75rem, 3vw, 3rem); line-height:1.05; letter-spacing:-1.8px; max-width:720px; }
+        .hero-kids p { position:relative; margin-top:12px; max-width:720px; color:rgba(255,255,255,.88); font-weight:700; line-height:1.7; }
+        .hero-pills { position:relative; display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+        .hero-pills span { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.24); padding:10px 14px; border-radius:999px; font-weight:900; font-size:.85rem; }
+
+        .lab-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .9fr); gap: 24px; width: 100%; align-items:start; }
+        .card { background: var(--card-bg); backdrop-filter: blur(14px); border-radius: var(--radius); padding: 30px; box-shadow: var(--shadow); border: 2px solid rgba(255,255,255,.8); height: fit-content; position:relative; overflow:hidden; }
+        .card::before { content:""; position:absolute; inset:0 0 auto; height:7px; background:linear-gradient(90deg, var(--secondary), var(--pink), var(--primary-2), var(--mint)); }
+        .section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; flex-wrap:wrap; }
+        .section-title h3 { font-size:1.35rem; letter-spacing:-.5px; }
+        .mini-label { font-weight:900; color:var(--sub); font-size:.82rem; letter-spacing:.5px; text-transform:uppercase; }
+        .select-wrap { margin-bottom:22px; display:flex; flex-direction:column; gap:10px; }
+        #materialSelect, .auth-input { width:100%; padding: 18px 20px; border-radius: 20px; border: 3px solid #e7eaf7; font-weight: 800; background: white; color:var(--text); outline:none; transition:.25s; box-shadow: inset 0 -4px 0 rgba(109,93,252,.05); }
+        #materialSelect:focus, .auth-input:focus { border-color: var(--primary-2); box-shadow: 0 0 0 5px rgba(24,168,255,.12); }
+
+        .learning-path { margin-bottom: 22px; display: flex; flex-direction: column; gap: 16px; }
+        .path-head { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+        .path-head h4 { margin-top:6px; font-size:1.05rem; letter-spacing:-.2px; }
+        .unlock-info { background:#eef2ff; color:var(--primary); padding:9px 13px; border-radius:999px; font-size:.78rem; font-weight:900; }
+        .lesson-tabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+        .lesson-tabs button { border:0; padding:16px 10px; border-radius:18px; font-weight:900; background:#eef2ff; color:var(--text); cursor:pointer; transition:.25s; box-shadow: inset 0 -4px 0 rgba(109,93,252,.08); }
+        .lesson-tabs button:hover { transform: translateY(-1px); }
+        .lesson-tabs button.active { background:linear-gradient(135deg, var(--primary), var(--primary-2)); color:white; box-shadow:0 16px 32px -18px rgba(109,93,252,.9); }
+        .lesson-tabs button.locked { opacity:.48; cursor:not-allowed; filter:grayscale(.15); }
+        .lesson-numbers-wrap { background:rgba(255,255,255,.7); border:2px solid rgba(255,255,255,.85); border-radius:24px; padding:16px; }
+        .lesson-numbers { display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+        .lesson-numbers button { width:46px; height:46px; border-radius:15px; border:2px solid #e2e8f0; background:white; color:var(--text); font-weight:900; cursor:pointer; transition:.22s; position:relative; }
+        .lesson-numbers button:hover { transform: translateY(-2px); border-color:var(--primary-2); }
+        .lesson-numbers button.active { background:var(--primary); color:white; border-color:var(--primary); box-shadow:0 12px 25px -15px rgba(109,93,252,.9); }
+        .lesson-numbers button.done { background:#dcfce7; color:#15803d; border-color:#86efac; }
+        .lesson-numbers button.done::after { content:'✓'; position:absolute; right:-5px; top:-7px; width:20px; height:20px; border-radius:999px; background:var(--success); color:white; font-size:.75rem; display:grid; place-items:center; border:2px solid white; }
+        .lesson-empty { width:100%; color:var(--sub); font-weight:800; padding:10px 0; }
+
+
+        .box-target { background: linear-gradient(135deg, #fff7d6, #ffffff 62%, #e8f7ff); padding: 28px; border-radius: 28px; text-align: center; margin-bottom: 22px; border: 3px solid #fff; box-shadow: inset 0 -8px 0 rgba(255,183,3,.13); position:relative; }
+        .box-target::before { content:"Kalimat tantangan hari ini"; display:inline-flex; margin-bottom:12px; background:#fff; color:#f59e0b; padding:8px 13px; border-radius:999px; font-size:.78rem; font-weight:900; text-transform:uppercase; }
+        .target-text { font-size: clamp(1.15rem, 2.1vw, 1.65rem); font-weight: 900; color: var(--text); font-style: normal; line-height: 1.55; }
+        .eval-display { min-height: 190px; background: rgba(255,255,255,.8); border: 3.5px dashed #b9d8ff; border-radius: 28px; padding: 26px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; text-align: center; box-shadow: inset 0 0 0 8px rgba(24,168,255,.04); }
+        .eval-display p { color: var(--sub); font-weight: 850; }
+        .word-eval { display: inline-block; margin: 6px; padding: 11px 15px; border-radius: 16px; font-weight: 900; font-size: 1.05rem; }
+        .word-correct { color: #047857; background: #d9faec; border-bottom: 5px solid var(--success); }
+        .word-wrong { color: #be123c; background: #ffe4ec; text-decoration: line-through; opacity: .9; border-bottom: 5px solid #fb7185; }
+        .btn-mic { background: linear-gradient(135deg, #ff5fa2, #ff8a3d); color: white; border: none; padding: 21px 24px; border-radius: 24px; font-weight: 900; font-size: 1.15rem; cursor: pointer; transition: .28s; width: 100%; margin-top: 24px; display: flex; align-items: center; justify-content: center; gap: 12px; box-shadow: 0 20px 38px -18px rgba(255,95,162,.85); }
+        .btn-mic:hover { transform: translateY(-2px) scale(1.01); filter:saturate(1.08); }
+        .btn-mic.active { background: linear-gradient(135deg, #ef4444, #fb7185); animation: pulse 1.15s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(.98); } 100% { transform: scale(1); } }
+
+        .stats-container { display:grid; gap:14px; }
+        .stat-card { background: linear-gradient(135deg, #ffffff, #f7fbff); padding: 22px; border-radius: 24px; display: flex; justify-content: space-between; align-items: center; border: 2px solid #eef2ff; box-shadow: 0 14px 30px -24px rgba(0,0,0,.28); }
+        .stat-card span:first-child { font-weight:900; font-size:.78rem; color:var(--sub); letter-spacing:.5px; }
+        .stat-val { font-size: 2rem; font-weight: 900; color: var(--primary); letter-spacing:-1px; }
+        .badge { padding: 9px 15px; border-radius: 999px; font-size: .78rem; font-weight: 900; text-transform: uppercase; display:inline-flex; align-items:center; gap:6px; }
+        .badge-uts { background: #ffe4e6; color: #e11d48; }
+        .badge-uas { background: #fef3c7; color: #b45309; }
+        .badge-latihan { background: #dcfce7; color: #15803d; }
+        #statusKkm { margin-top:20px !important; padding:25px !important; border-radius:26px !important; text-align:center; background:linear-gradient(135deg,#ffffff,#f6f7ff) !important; font-weight:900 !important; border: 2.5px solid #eef2ff !important; font-size: 1.18rem !important; color: var(--sub); box-shadow: inset 0 -6px 0 rgba(109,93,252,.08); }
+        .history-item { background: white; border: 2px solid #f1f5f9; padding: 22px; border-radius: 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; box-shadow: 0 14px 35px -28px rgba(0,0,0,.3); }
+
+        #authOverlay { position: fixed; inset: 0; background: rgba(24, 35, 58, .72); z-index: 2000; display: none; align-items: center; justify-content: center; backdrop-filter: blur(14px); padding: 20px; }
+        .auth-card { background: #fffaf2; padding: 38px; border-radius: 36px; width: 100%; max-width: 440px; text-align: center; border:3px solid #fff; box-shadow: var(--shadow); }
+        .toggle-auth { color: var(--primary); font-weight: 900; cursor: pointer; text-decoration: underline; }
+
+
+        .rubric-box { margin-top:18px; padding:18px; border-radius:22px; background:#ffffff; border:2px solid #eef2ff; box-shadow: inset 0 -5px 0 rgba(109,93,252,.06); }
+        .rubric-box h4 { font-size:.95rem; margin-bottom:10px; color:var(--text); }
+        .rubric-note { color:var(--sub); font-size:.84rem; line-height:1.6; font-weight:750; margin-bottom:10px; }
+        .rubric-box ul { padding-left:18px; color:var(--sub); font-size:.86rem; line-height:1.65; font-weight:750; }
+        .rubric-box b { color:var(--primary); }
+
+        @media (max-width: 1150px) {
+            .nav-links { display: none; }
+            .hamburger { display: flex; }
+            main { padding: 24px 16px 50px; }
+            .lab-grid { grid-template-columns: 1fr !important; gap: 20px; }
+            .card { padding: 24px; width: 100%; margin: 0 auto; }
+        }
+        @media (max-width: 640px) {
+            #trialBanner { font-size:.78rem; padding:10px; }
+            nav { width: calc(100% - 22px); top: 10px; height: 66px; border-radius:20px; padding: 0 14px; }
+            .logo { font-size:1.18rem; }
+            .logo::before { width:34px; height:34px; border-radius:12px; }
+            main { padding: 18px 12px 38px; }
+            .hero-kids { padding: 22px; border-radius: 28px; margin-bottom:18px; }
+            .hero-kids h1 { font-size: 1.72rem; }
+            .hero-kids p { font-size:.92rem; }
+            .hero-pills span { font-size:.72rem; padding:8px 10px; }
+            .card { padding: 20px; border-radius: 26px; }
+            .box-target { padding: 22px 16px; }
+            .eval-display { min-height: 155px; padding: 18px; }
+            .btn-mic { font-size:1rem; padding:18px; border-radius:20px; }
+            .stat-card { padding:18px; }
+            .lesson-tabs { grid-template-columns:1fr; }
+            .lesson-numbers button { width:42px; height:42px; }
+            .path-head { align-items:flex-start; }
+            .history-item { align-items:flex-start; gap:12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="trialBanner">⚡ GUEST MODE: SISA TRIAL <span id="trialCount">3</span> KALI</div>
+
+<div id="authOverlay">
+    <div class="auth-card">
+        <h2 id="authTitle" style="font-size: 1.8rem; margin-bottom: 10px;">Login Siswa 🔑</h2>
+        <p id="authSubtitle" style="color: var(--sub); margin-bottom: 35px;">Masuk untuk simpan progres latihan Anda.</p>
+        
+        <input type="email" id="loginEmail" class="auth-input" placeholder="Email Sekolah">
+        <input type="password" id="loginPass" class="auth-input" placeholder="Password (Min. 6 Karakter)">
+        
+        <button id="authBtn" onclick="handleAuthAction()" class="btn-mic" style="margin-top: 20px;">Masuk Sekarang</button>
+        
+        <p style="margin-top: 25px; font-size: 0.95rem; font-weight: 600;">
+            <span id="toggleMsg">Belum punya akun?</span> 
+            <span class="toggle-auth" onclick="toggleAuthMode()">Daftar Di Sini</span>
+        </p>
+        
+        <button onclick="closeAuth()" style="background:none; border:none; color:var(--sub); margin-top:25px; cursor:pointer; font-weight:700;">Nanti Saja</button>
+    </div>
+</div>
+
+<div class="drawer-overlay" onclick="toggleMenu()"></div>
+<div id="sideDrawer" class="side-drawer">
+    <div class="logo" style="margin-bottom: 10px;">PAHAM Lab.</div>
+    <div class="drawer-links">
+        <a onclick="showPage('lab'); toggleMenu();">🎙️ Praktek Speaking</a>
+        <a onclick="showPage('riwayat'); toggleMenu();">📊 Riwayat Cloud</a>
+        <a id="adminLinkMob" onclick="showPage('admin'); toggleMenu();" style="display:none; color: var(--error);">⚙️ Panel Guru</a>
+        <hr style="opacity: 0.1; margin: 10px 0;">
+        <a id="loginMob" onclick="openAuth(); toggleMenu();" style="color: var(--primary);">👤 Login / Daftar</a>
+        <a id="logoutMob" onclick="handleLogout()" style="display:none; color: var(--error);">🚪 Keluar Aplikasi</a>
+    </div>
+</div>
+
+<nav>
+    <div class="logo">PAHAM Lab. <span id="userRole" style="font-size: 0.65rem; opacity: 0.5;"></span></div>
+    <div class="nav-links">
+        <a onclick="showPage('lab')" id="link-lab" class="active">Praktek</a>
+        <a onclick="showPage('riwayat')" id="link-riwayat">Riwayat Cloud</a>
+        <a id="adminLink" onclick="showPage('admin')" style="display: none; color: var(--error);">Panel Guru</a>
+        <a id="loginNavBtn" onclick="openAuth()" class="btn-login-nav">Login / Daftar</a>
+        <a id="logoutBtn" onclick="handleLogout()" style="display: none; font-weight: 800; color: var(--error); cursor: pointer; font-size: 0.8rem;">LOGOUT</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+</nav>
+
+<main>
+    <section id="lab" class="page active">
+        <div class="hero-kids">
+            <h1>PAHAM: Smart Speaking Lab Berbasis Web Speech API 🎤</h1>
+            <p>Latihan speaking Bahasa Inggris berbasis level, evaluasi otomatis, dan monitoring progres sesuai indikator kompetensi SMK: pronunciation, fluency, dan accuracy.</p>
+            <div class="hero-pills">
+                <span>🎯 Pronunciation</span>
+                <span>⚡ Fluency</span>
+                <span>✅ Accuracy</span>
+                <span>📚 Monitoring Guru</span>
+            </div>
+        </div>
+
+        <div class="lab-grid">
+            <div class="card">
+                <div class="section-title">
+                    <h3>🎒 Ruang Latihan</h3>
+                    <span class="badge badge-latihan">Berbasis Kompetensi</span>
+                </div>
+                <div class="learning-path">
+                    <div class="path-head">
+                        <div>
+                            <span class="mini-label">Alur Pembelajaran Bertahap</span>
+                            <h4 id="currentLessonTitle">Pilih tahap dan nomor soal</h4>
+                        </div>
+                        <span id="unlockInfo" class="unlock-info">Latihan aktif</span>
+                    </div>
+
+                    <div class="lesson-tabs">
+                        <button type="button" onclick="selectCategory('Latihan')" id="tab-Latihan">Latihan</button>
+                        <button type="button" onclick="selectCategory('UTS')" id="tab-UTS">UTS 🔒</button>
+                        <button type="button" onclick="selectCategory('UAS')" id="tab-UAS">UAS 🔒</button>
+                    </div>
+
+                    <div class="lesson-numbers-wrap">
+                        <span class="mini-label">Nomor Soal</span>
+                        <div id="lessonNumbers" class="lesson-numbers"></div>
+                    </div>
+                </div>
+                <div class="box-target"><p id="targetText" class="target-text">Memuat materi...</p></div>
+                <div id="wordFeedback" class="eval-display"><p>🎧 Siap mendengarkan... tekan tombol latihan dulu ya!</p></div>
+                <button id="micBtn" class="btn-mic">🎙️ Mulai Latihan</button>
+            </div>
+
+            <div class="card">
+                <div class="section-title">
+                    <h3>🏆 Skor Analitik</h3>
+                    <span id="typeBadge" class="badge">UTS</span>
+                </div>
+                <div class="stats-container">
+                    <div class="stat-card"><span>ACCURACY</span><span class="stat-val" id="acc">0%</span></div>
+                    <div class="stat-card"><span>PRONUNCIATION</span><span class="stat-val" id="pro">0%</span></div>
+                    <div class="stat-card"><span>FLUENCY</span><span class="stat-val" id="flu">0%</span></div>
+                </div>
+                <div id="statusKkm" style="margin-top:25px; padding:28px; border-radius:24px; text-align:center; background:#f8fafc; font-weight:800; border: 2.5px solid #f1f5f9; font-size: 1.3rem; color: var(--sub);">READY</div>
+                <div id="aiReviewBox" class="ai-review-box">
+                    <h4>🤖 Review AI Guru Speaking</h4>
+                    <p>Review AI akan muncul otomatis setelah latihan selesai.</p>
+                </div>
+                <div class="rubric-box">
+                    <h4>Rubrik CP Bahasa Inggris Fase E / KKM 75</h4>
+                    <p class="rubric-note">
+                        Diadaptasi dari elemen <b>Menyimak–Berbicara</b> pada CP Bahasa Inggris Fase E: komunikasi, percakapan/diskusi, serta penggunaan <b>speed</b> dan <b>pitch</b> agar dapat dipahami.
+                    </p>
+                    <ul>
+                        <li><b>Pronunciation 35%</b>: keterpahaman pelafalan/pitch, diproksikan melalui confidence Web Speech API.</li>
+                        <li><b>Fluency 30%</b>: kelancaran berbicara berdasarkan speed/kecepatan bicara atau words per minute.</li>
+                        <li><b>Accuracy 35%</b>: kesesuaian hasil speech-to-text dengan teks target pembelajaran.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="riwayat" class="page">
+        <div class="card" style="width: 100%;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:40px; flex-wrap: wrap; gap:15px;">
+                <h2>Daftar Riwayat Cloud</h2>
+                <div style="background: var(--bg); padding: 10px 20px; border-radius: 12px; font-weight: 700; font-size: 0.85rem;" id="historyInfo">Guest Mode</div>
+            </div>
+            <div id="historyList" style="display: flex; flex-direction: column; gap: 18px;"></div>
+        </div>
+    </section>
+
+    <section id="admin" class="page">
+        <div class="card">
+            <h2>Panel Kontrol Guru</h2>
+            <p style="margin-top:10px; color:var(--sub); font-weight:750; line-height:1.6;">Akun guru digunakan untuk memverifikasi materi, mengunggah target speaking, dan memantau capaian kompetensi siswa.</p>
+            <div style="margin-top: 35px; display: flex; flex-direction: column; gap: 20px;">
+                <input type="text" id="mTitle" class="auth-input" placeholder="Judul Materi">
+                <textarea id="mContent" class="auth-input" rows="4" placeholder="Naskah target..."></textarea>
+                <select id="mCategory" class="auth-input">
+                    <option value="Latihan">Latihan</option>
+                    <option value="UTS">UTS</option>
+                    <option value="UAS">UAS</option>
+                </select>
+                <button onclick="saveNewMaterial()" class="btn-mic" style="background: var(--accent);">Publikasikan</button>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script>
+const SUPABASE_URL = "https://btvdrvddxvqxdbfihumz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_XJwOESP0o9bkAWtEN7QnDQ_HjwTrlW5";
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let materials = [];
+let currentMaterial = null;
+let activeCategory = 'Latihan';
+let completedMaterials = JSON.parse(localStorage.getItem('completed_materials')) || [];
+let trialLeft = parseInt(localStorage.getItem('paham_trial_count')) || 3;
+let isSignUpMode = false;
+
+const KKM = 75;
+const RUBRIC = { pronunciation: 0.35, fluency: 0.30, accuracy: 0.35 };
+
+// AI Review memakai Supabase Edge Function bernama: ai-review
+// API key OpenAI disimpan di Supabase Secrets: OPENAI_API_KEY
+// Jadi key tidak ditulis di HTML dan aman untuk push ke GitHub.
+const AI_REVIEW_FUNCTION = 'ai-review';
+// Bobot rubrik adaptif berbasis CP Bahasa Inggris Fase E SMK: Menyimak–Berbicara.
+// KKM 75 digunakan sebagai standar ketuntasan praktik speaking pada sistem.
+const CATEGORY_ORDER = { Latihan: 1, UTS: 2, UAS: 3 };
+
+// --- AUTH UI TOGGLE ---
+function toggleAuthMode() {
+    isSignUpMode = !isSignUpMode;
+    const title = document.getElementById('authTitle');
+    const subtitle = document.getElementById('authSubtitle');
+    const btn = document.getElementById('authBtn');
+    const toggleMsg = document.getElementById('toggleMsg');
+    const toggleLink = document.querySelector('.toggle-auth');
+
+    if (isSignUpMode) {
+        title.innerText = "Daftar Akun Baru ✨";
+        subtitle.innerText = "Buat akun untuk mulai simpan riwayat belajar.";
+        btn.innerText = "Daftar Sekarang";
+        toggleMsg.innerText = "Sudah punya akun?";
+        toggleLink.innerText = "Login Saja";
+    } else {
+        title.innerText = "Login Siswa 🔑";
+        subtitle.innerText = "Masuk untuk simpan progres latihan Anda.";
+        btn.innerText = "Masuk Sekarang";
+        toggleMsg.innerText = "Belum punya akun?";
+        toggleLink.innerText = "Daftar Di Sini";
+    }
+}
+
+async function handleAuthAction() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const pass = document.getElementById('loginPass').value;
+
+    if (!email || !pass) {
+        alert("Email dan Password gak boleh kosong, San!");
+        return;
+    }
+
+    if (isSignUpMode) {
+        const { error } = await _supabase.auth.signUp({ email, password: pass });
+        if (error) alert("Gagal Daftar: " + error.message);
+        else alert("Berhasil! Silakan cek email untuk verifikasi jika aktif, lalu login.");
+    } else {
+        const { error } = await _supabase.auth.signInWithPassword({ email, password: pass });
+        if (error) alert("Gagal Login: " + error.message);
+        else location.reload();
+    }
+}
+
+// --- NAVIGATION ---
+function toggleMenu() {
+    const drawer = document.getElementById('sideDrawer');
+    const overlay = document.querySelector('.drawer-overlay');
+    drawer.classList.toggle('open');
+    overlay.style.display = drawer.classList.contains('open') ? 'block' : 'none';
+}
+
+function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+
+    document.querySelectorAll('.nav-links a').forEach(link => link.classList.remove('active'));
+    const activeLink = document.getElementById(`link-${id}`);
+    if (activeLink) activeLink.classList.add('active');
+
+    if (id === 'riwayat') loadHistory();
+    window.scrollTo(0,0);
+}
+
+function openAuth() { document.getElementById('authOverlay').style.display = 'flex'; }
+function closeAuth() { document.getElementById('authOverlay').style.display = 'none'; }
+
+async function handleLogout() {
+    await _supabase.auth.signOut();
+    location.reload();
+}
+
+// --- DATA INIT ---
+async function initApp() {
+    const { data: { session } } = await _supabase.auth.getSession();
+    if (session) {
+        currentUser = session.user;
+        await setupAuthenticatedUI();
+        await loadCompletedFromCloud();
+    }
+
+    updateTrialStatus();
+
+    const { data, error } = await _supabase
+        .from('materials')
+        .select('*');
+
+    if (error) {
+        document.getElementById('targetText').innerText = 'Gagal memuat materi dari database.';
+        console.error(error);
+        return;
+    }
+
+    if (data && data.length) {
+        // Hilangkan duplikat title+category supaya dropdown/nomor soal tidak dobel.
+        const seen = new Set();
+        materials = data
+            .filter(m => {
+                const key = `${m.category}-${m.title}`.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
+            .sort((a, b) => {
+                const cat = (CATEGORY_ORDER[a.category] || 99) - (CATEGORY_ORDER[b.category] || 99);
+                if (cat !== 0) return cat;
+                return String(a.title || '').localeCompare(String(b.title || ''), 'id');
+            });
+
+        selectCategory('Latihan');
+    } else {
+        document.getElementById('targetText').innerText = 'Belum ada materi. Tambahkan data di Supabase.';
+        document.getElementById('lessonNumbers').innerHTML = '<div class="lesson-empty">Belum ada soal.</div>';
+    }
+}
+
+async function setupAuthenticatedUI() {
+    document.getElementById('loginNavBtn').style.display = 'none';
+    document.getElementById('loginMob').style.display = 'none';
+    document.getElementById('logoutBtn').style.display = 'block';
+    document.getElementById('logoutMob').style.display = 'flex';
+    document.getElementById('trialBanner').style.display = 'none';
+    document.getElementById('historyInfo').innerText = `Akun: ${currentUser.email}`;
+
+    const { data } = await _supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', currentUser.id)
+        .single();
+
+    if (data && data.role === 'guru') {
+        document.getElementById('adminLink').style.display = 'inline-block';
+        document.getElementById('adminLinkMob').style.display = 'flex';
+    }
+}
+
+async function loadCompletedFromCloud() {
+    if (!currentUser) return;
+
+    const { data } = await _supabase
+        .from('practice_records')
+        .select('material_id, final_score')
+        .eq('user_id', currentUser.id)
+        .gte('final_score', KKM);
+
+    if (data) {
+        completedMaterials = [...new Set(data.map(r => r.material_id))];
+        localStorage.setItem('completed_materials', JSON.stringify(completedMaterials));
+    }
+}
+
+function updateTrialStatus() {
+    if (currentUser) {
+        document.getElementById('trialBanner').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('trialCount').innerText = trialLeft;
+    if (trialLeft <= 0) {
+        document.getElementById('micBtn').disabled = true;
+        openAuth();
+    }
+}
+
+// --- LEARNING PATH: LATIHAN -> UTS -> UAS ---
+function getMaterialsByCategory(category) {
+    return materials.filter(m => m.category === category);
+}
+
+function isCategoryCompleted(category) {
+    const list = getMaterialsByCategory(category);
+    if (!list.length) return false;
+    return list.every(m => completedMaterials.includes(m.id));
+}
+
+function canOpenCategory(category) {
+    if (category === 'Latihan') return true;
+    if (category === 'UTS') return isCategoryCompleted('Latihan');
+    if (category === 'UAS') return isCategoryCompleted('Latihan') && isCategoryCompleted('UTS');
+    return false;
+}
+
+function updateCategoryButtons() {
+    ['Latihan', 'UTS', 'UAS'].forEach(cat => {
+        const btn = document.getElementById(`tab-${cat}`);
+        const locked = !canOpenCategory(cat);
+        const done = isCategoryCompleted(cat);
+
+        btn.classList.toggle('active', activeCategory === cat);
+        btn.classList.toggle('locked', locked);
+
+        if (cat === 'Latihan') btn.innerText = done ? 'Latihan ✓' : 'Latihan';
+        if (cat === 'UTS') btn.innerText = locked ? 'UTS 🔒' : (done ? 'UTS ✓' : 'UTS');
+        if (cat === 'UAS') btn.innerText = locked ? 'UAS 🔒' : (done ? 'UAS ✓' : 'UAS');
+    });
+
+    const info = document.getElementById('unlockInfo');
+    if (activeCategory === 'Latihan') info.innerText = 'Selesaikan Latihan untuk membuka UTS';
+    if (activeCategory === 'UTS') info.innerText = 'Selesaikan UTS untuk membuka UAS';
+    if (activeCategory === 'UAS') info.innerText = 'Tahap akhir speaking test';
+}
+
+function selectCategory(category) {
+    if (!canOpenCategory(category)) {
+        const message = category === 'UTS'
+            ? 'UTS masih terkunci. Selesaikan semua soal Latihan dulu.'
+            : 'UAS masih terkunci. Selesaikan semua soal Latihan dan UTS dulu.';
+        alert(message);
+        updateCategoryButtons();
+        return;
+    }
+
+    activeCategory = category;
+    const firstMaterial = getMaterialsByCategory(category)[0];
+    if (firstMaterial) currentMaterial = firstMaterial;
+
+    updateCategoryButtons();
+    updateMaterialView();
+    renderLessonNumbers();
+    resetFeedbackOnly();
+}
+
+function renderLessonNumbers() {
+    const box = document.getElementById('lessonNumbers');
+    const list = getMaterialsByCategory(activeCategory);
+
+    if (!list.length) {
+        box.innerHTML = '<div class="lesson-empty">Belum ada soal pada kategori ini.</div>';
+        return;
+    }
+
+    box.innerHTML = list.map((m, index) => {
+        const done = completedMaterials.includes(m.id) ? 'done' : '';
+        const active = currentMaterial && currentMaterial.id === m.id ? 'active' : '';
+        return `<button type="button" title="${m.title}" class="${done} ${active}" onclick="selectMaterialById('${m.id}')">${index + 1}</button>`;
+    }).join('');
+}
+
+function selectMaterialById(id) {
+    currentMaterial = materials.find(m => m.id === id);
+    updateMaterialView();
+    renderLessonNumbers();
+    resetFeedbackOnly();
+}
+
+function updateMaterialView() {
+    if (!currentMaterial) return;
+
+    document.getElementById('targetText').innerText = currentMaterial.content;
+    document.getElementById('currentLessonTitle').innerText = `${currentMaterial.category}: ${currentMaterial.title}`;
+
+    const badge = document.getElementById('typeBadge');
+    badge.innerText = currentMaterial.category;
+    badge.className = `badge badge-${String(currentMaterial.category).toLowerCase()}`;
+}
+
+function resetFeedbackOnly() {
+    document.getElementById('wordFeedback').innerHTML = '<p>🎧 Siap mendengarkan... tekan tombol latihan dulu ya!</p>';
+    document.getElementById('acc').innerText = '0%';
+    document.getElementById('pro').innerText = '0%';
+    document.getElementById('flu').innerText = '0%';
+    const status = document.getElementById('statusKkm');
+    status.innerText = `READY — KKM ${KKM}`;
+    status.style.color = 'var(--sub)';
+}
+
+// --- SPEECH RECOGNITION ---
+const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let startTime = null;
+let lastTranscript = '';
+
+if (SpeechAPI) {
+    recognition = new SpeechAPI();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+} else {
+    alert('Browser belum mendukung Web Speech API. Gunakan Google Chrome desktop/android.');
+}
+
+document.getElementById('micBtn').onclick = function() {
+    if (!recognition) return alert('Web Speech API belum didukung browser ini.');
+    if (!currentMaterial) return alert('Pilih soal terlebih dahulu.');
+    if (!currentUser && trialLeft <= 0) return openAuth();
+
+    if (this.classList.contains('active')) {
+        recognition.stop();
+    } else {
+        this.classList.add('active');
+        this.innerText = '🛑 Berhenti & Analisis';
+        startTime = new Date();
+        lastTranscript = '';
+        recognition.start();
+        document.getElementById('wordFeedback').innerHTML = '<p style="color:var(--primary); font-weight:800;">Mendengarkan...</p>';
+    }
+};
+
+if (recognition) {
+    recognition.onresult = (e) => {
+        lastTranscript = e.results[0][0].transcript;
+        processScoring(e.results[0][0].confidence || 0.75);
+    };
+
+    recognition.onerror = (e) => {
+        console.error(e);
+        alert('Mikrofon error / tidak terdengar. Coba izinkan akses microphone lalu ulangi.');
+    };
+
+    recognition.onend = () => {
+        const btn = document.getElementById('micBtn');
+        btn.classList.remove('active');
+        btn.innerText = '🎙️ Mulai Latihan';
+    };
+}
+
+
+
+function escapeHTML(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+async function getAIReview({ targetText, transcript, pronunciation, fluency, accuracy, finalScore, status }) {
+    const promptData = {
+        targetText,
+        transcript: transcript || '(tidak terbaca)',
+        pronunciation,
+        fluency,
+        accuracy,
+        finalScore,
+        kkm: KKM,
+        status,
+        curriculumBase: 'CP Bahasa Inggris Fase E SMK - elemen Menyimak-Berbicara: komunikasi lisan, speed, pitch, dan keterpahaman.'
+    };
+
+    try {
+        const { data, error } = await _supabase.functions.invoke(AI_REVIEW_FUNCTION, {
+            body: promptData
+        });
+
+        if (error) {
+            console.error('Supabase Function error:', error);
+            return 'Review AI gagal dimuat. Pastikan Edge Function ai-review sudah dibuat dan secret OPENAI_API_KEY sudah tersimpan di Supabase.';
+        }
+
+        if (data?.review) {
+            return data.review;
+        }
+
+        console.error('AI Review response kosong:', data);
+        return 'Review AI belum tersedia. Response dari server kosong.';
+    } catch (error) {
+        console.error(error);
+        return 'Review AI gagal dimuat karena koneksi atau Edge Function bermasalah.';
+    }
+}
+
+async function processScoring(confidence) {
+    if (!currentMaterial) return;
+
+    const duration = Math.max((new Date() - startTime) / 1000, 1);
+
+    const cleanText = (txt) => String(txt || '')
+        .toLowerCase()
+        .replace(/[.,!?;:]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const target = cleanText(currentMaterial.content).split(' ').filter(Boolean);
+    const input = cleanText(lastTranscript).split(' ').filter(Boolean);
+
+    let evalHtml = '';
+    let matches = 0;
+    const usedIndexes = new Set();
+
+    target.forEach(tw => {
+        const foundIndex = input.findIndex((iw, idx) => iw === tw && !usedIndexes.has(idx));
+        if (foundIndex >= 0) {
+            usedIndexes.add(foundIndex);
+            evalHtml += `<span class="word-eval word-correct">${tw}</span> `;
+            matches++;
+        } else {
+            evalHtml += `<span class="word-eval word-wrong">${tw}</span> `;
+        }
+    });
+
+    // Indikator diselaraskan dengan CP Bahasa Inggris Fase E SMK Kurikulum Merdeka.
+    // Menyimak–Berbicara: komunikasi lisan, speed, pitch, dan keterpahaman konteks.
+    // Pronunciation = clarity/pitch via confidence Web Speech API.
+    // Fluency = speed via words per minute.
+    // Accuracy = kesesuaian speech-to-text dengan teks target.
+    const acc = target.length ? Math.round((matches / target.length) * 100) : 0;
+    const pro = Math.round(Math.max(0, Math.min(1, confidence)) * 100);
+    const wordsPerMinute = (input.length / duration) * 60;
+    const flu = Math.min(100, Math.round((wordsPerMinute / 85) * 100));
+
+    const final = Math.round(
+        (pro * RUBRIC.pronunciation) +
+        (flu * RUBRIC.fluency) +
+        (acc * RUBRIC.accuracy)
+    );
+
+    let grade = '';
+    let statusColor = '';
+
+    if (final >= 90) {
+        grade = 'SANGAT KOMPETEN';
+        statusColor = 'var(--success)';
+    } else if (final >= KKM) {
+        grade = 'KOMPETEN';
+        statusColor = 'var(--success)';
+    } else if (final >= 65) {
+        grade = 'CUKUP, PERLU PENGUATAN';
+        statusColor = 'var(--warning)';
+    } else {
+        grade = 'BELUM KOMPETEN';
+        statusColor = 'var(--error)';
+    }
+
+    document.getElementById('wordFeedback').innerHTML = evalHtml || '<p>Tidak ada suara yang terbaca. Coba ulangi.</p>';
+    document.getElementById('acc').innerText = acc + '%';
+    document.getElementById('pro').innerText = pro + '%';
+    document.getElementById('flu').innerText = flu + '%';
+
+    const status = document.getElementById('statusKkm');
+    status.innerText = `${grade} — SKOR ${final} / KKM ${KKM}`;
+    status.style.color = statusColor;
+
+    const aiBox = document.getElementById('aiReviewBox');
+    aiBox.innerHTML = `<h4>🤖 Review AI Guru Speaking</h4><p class="ai-review-loading">Sedang membuat review AI...</p>`;
+
+    const aiReview = await getAIReview({
+        targetText: currentMaterial.content,
+        transcript: lastTranscript,
+        pronunciation: pro,
+        fluency: flu,
+        accuracy: acc,
+        finalScore: final,
+        status: grade
+    });
+
+   const isErrorReview =
+  aiReview.includes('gagal') ||
+  aiReview.includes('belum diisi');
+
+aiBox.innerHTML = `
+  <h4>🤖 Review AI Guru Speaking</h4>
+  <p class="${isErrorReview ? 'ai-review-error' : ''}">
+    ${aiReview.replace(/\n/g, '<br>')}
+  </p>
+`;
+
+    // Soal dianggap selesai kalau sudah mencapai KKM.
+    if (final >= KKM && !completedMaterials.includes(currentMaterial.id)) {
+        completedMaterials.push(currentMaterial.id);
+        localStorage.setItem('completed_materials', JSON.stringify(completedMaterials));
+    }
+
+    if (!currentUser) {
+        trialLeft--;
+        localStorage.setItem('paham_trial_count', trialLeft);
+        updateTrialStatus();
+    } else {
+        await _supabase.from('practice_records').insert([{
+            user_id: currentUser.id,
+            material_id: currentMaterial.id,
+            accuracy: acc,
+            pronunciation: pro,
+            fluency: flu,
+            final_score: final,
+            status: grade,
+            attempt_type: currentMaterial.category
+        }]);
+    }
+
+    updateCategoryButtons();
+    renderLessonNumbers();
+}
+
+// --- HISTORY & ADMIN ---
+async function loadHistory() {
+    if (!currentUser) {
+        document.getElementById('historyList').innerHTML = '<div class="history-item"><b>Login dulu untuk melihat riwayat cloud.</b></div>';
+        return;
+    }
+
+    const { data } = await _supabase
+        .from('practice_records')
+        .select('*, materials(title, category)')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+    if (data && data.length) {
+        document.getElementById('historyList').innerHTML = data.map(h => `
+            <div class="history-item">
+                <div>
+                    <b>${h.materials?.category || h.attempt_type}: ${h.materials?.title || 'Materi'}</b><br>
+                    <small>${new Date(h.created_at).toLocaleString('id-ID')}</small><br>
+                    <small>Pronunciation ${h.pronunciation}% • Fluency ${h.fluency}% • Accuracy ${h.accuracy}%</small>
+                </div>
+                <div style="text-align:right;">
+                    <b style="color:var(--primary); font-size:1.4rem;">${h.final_score}</b><br>
+                    <small style="color:${(h.final_score >= KKM) ? 'var(--success)' : 'var(--error)'}">${h.status}</small>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        document.getElementById('historyList').innerHTML = '<div class="history-item"><b>Belum ada riwayat latihan.</b></div>';
+    }
+}
+
+async function saveNewMaterial() {
+    const title = document.getElementById('mTitle').value.trim();
+    const content = document.getElementById('mContent').value.trim();
+    const category = document.getElementById('mCategory').value;
+
+    if (!title || !content) return alert('Judul dan naskah target wajib diisi.');
+
+    const { error } = await _supabase.from('materials').insert([{ title, content, category }]);
+    if (error) alert('Gagal menyimpan materi: ' + error.message);
+    else { alert('Materi berhasil dipublikasikan!'); location.reload(); }
+}
+
+initApp();
+</script>
+</body>
+</html>
