@@ -559,7 +559,7 @@ function updateCategoryButtons() {
     if (activeCategory === 'UAS') info.innerText = 'Tahap akhir speaking test';
 }
 
-function selectCategory(category) {
+async function selectCategory(category) {
     if (!canOpenCategory(category)) {
         const message = category === 'UTS'
             ? 'UTS masih terkunci. Selesaikan semua soal Latihan dulu.'
@@ -573,10 +573,11 @@ function selectCategory(category) {
     const firstMaterial = getMaterialsByCategory(category)[0];
     if (firstMaterial) currentMaterial = firstMaterial;
 
-    updateCategoryButtons();
-    updateMaterialView();
-    renderLessonNumbers();
-    resetFeedbackOnly();
+  updateCategoryButtons();
+updateMaterialView();
+renderLessonNumbers();
+resetFeedbackOnly();
+await loadLastRecordForCurrentMaterial();
 }
 
 function renderLessonNumbers() {
@@ -595,11 +596,12 @@ function renderLessonNumbers() {
     }).join('');
 }
 
-function selectMaterialById(id) {
+async function selectMaterialById(id) {
     currentMaterial = materials.find(m => m.id === id);
     updateMaterialView();
     renderLessonNumbers();
     resetFeedbackOnly();
+    await loadLastRecordForCurrentMaterial();
 }
 
 function updateMaterialView() {
@@ -624,56 +626,147 @@ function resetFeedbackOnly() {
 }
 
 // --- SPEECH RECOGNITION ---
+// --- SPEECH RECOGNITION ---
 const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let startTime = null;
 let lastTranscript = '';
+let isListening = false;
+let gotResult = false;
 
-if (SpeechAPI) {
-    recognition = new SpeechAPI();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.continuous = false;
-} else {
-    alert('Browser belum mendukung Web Speech API. Gunakan Google Chrome desktop/android.');
-}
+function createRecognition() {
+    const rec = new SpeechAPI();
+    rec.lang = 'en-US';
+rec.interimResults = true;
+rec.continuous = true;
+rec.maxAlternatives = 3;
 
-document.getElementById('micBtn').onclick = function() {
-    if (!recognition) return alert('Web Speech API belum didukung browser ini.');
-    if (!currentMaterial) return alert('Pilih soal terlebih dahulu.');
-    if (!currentUser && trialLeft <= 0) return openAuth();
+    rec.onresult = (e) => {
+    gotResult = true;
 
-    if (this.classList.contains('active')) {
-        recognition.stop();
-    } else {
-        this.classList.add('active');
-        this.innerText = '🛑 Berhenti & Analisis';
-        startTime = new Date();
-        lastTranscript = '';
-        recognition.start();
-        document.getElementById('wordFeedback').innerHTML = '<p style="color:var(--primary); font-weight:800;">Mendengarkan...</p>';
+    let finalText = '';
+    let interimText = '';
+
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+        const text = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+            finalText += text + ' ';
+        } else {
+            interimText += text + ' ';
+        }
     }
+
+    lastTranscript = (finalText || interimText).trim();
+
+    document.getElementById('wordFeedback').innerHTML =
+        `<p><b>Terdengar:</b><br>${lastTranscript}</p>`;
 };
 
-if (recognition) {
-    recognition.onresult = (e) => {
-        lastTranscript = e.results[0][0].transcript;
-        processScoring(e.results[0][0].confidence || 0.75);
-    };
+    rec.onerror = (e) => {
+        console.error("Speech Error:", e.error);
+        isListening = false;
 
-    recognition.onerror = (e) => {
-        console.error(e);
-        alert('Mikrofon error / tidak terdengar. Coba izinkan akses microphone lalu ulangi.');
-    };
-
-    recognition.onend = () => {
         const btn = document.getElementById('micBtn');
         btn.classList.remove('active');
         btn.innerText = '🎙️ Mulai Latihan';
+
+        document.getElementById('wordFeedback').innerHTML =
+            `<p>Suara tidak terbaca. Error: ${e.error}. Coba ulangi.</p>`;
     };
+
+    rec.onend = () => {
+        isListening = false;
+
+        const btn = document.getElementById('micBtn');
+        btn.classList.remove('active');
+        btn.innerText = '🎙️ Mulai Latihan';
+
+        if (!gotResult) {
+            document.getElementById('wordFeedback').innerHTML =
+                '<p>Suara belum terbaca. Coba bicara lebih dekat ke mikrofon dan jangan terlalu cepat.</p>';
+        }
+
+        recognition = null;
+    };
+
+    return rec;
 }
 
+document.getElementById('micBtn').onclick = function() {
+    if (!SpeechAPI) return alert('Web Speech API belum didukung browser ini.');
+    if (!currentMaterial) return alert('Pilih soal terlebih dahulu.');
+    if (!currentUser && trialLeft <= 0) return openAuth();
 
+   if (isListening && recognition) {
+    recognition.stop();
+
+    if (lastTranscript.trim()) {
+        setTimeout(() => processScoring(0.75), 300);
+    }
+
+    return;
+}
+
+    recognition = createRecognition();
+    isListening = true;
+    gotResult = false;
+
+    this.classList.add('active');
+    this.innerText = '🛑 Berhenti & Analisis';
+    startTime = new Date();
+    lastTranscript = '';
+
+    document.getElementById('wordFeedback').innerHTML =
+        '<p style="color:var(--primary); font-weight:800;">Mendengarkan...</p>';
+
+    try {
+        recognition.start();
+    } catch (err) {
+        console.error(err);
+        isListening = false;
+        recognition = null;
+
+        this.classList.remove('active');
+        this.innerText = '🎙️ Mulai Latihan';
+
+        document.getElementById('wordFeedback').innerHTML =
+            '<p>Gagal memulai mikrofon. Coba tekan lagi.</p>';
+    }
+};
+
+async function loadLastRecordForCurrentMaterial() {
+    if (!currentUser || !currentMaterial) return false;
+
+    const { data, error } = await _supabase
+        .from('practice_records')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('material_id', currentMaterial.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error || !data) return false;
+
+    document.getElementById('acc').innerText = data.accuracy + '%';
+    document.getElementById('pro').innerText = data.pronunciation + '%';
+    document.getElementById('flu').innerText = data.fluency + '%';
+
+    const status = document.getElementById('statusKkm');
+    status.innerText = `${data.status} — SKOR ${data.final_score} / KKM ${KKM}`;
+    status.style.color = data.final_score >= KKM ? 'var(--success)' : 'var(--error)';
+
+    document.getElementById('wordFeedback').innerHTML = `
+        <p><b>Transcript terakhir:</b><br>${data.transcript || '-'}</p>
+    `;
+
+    document.getElementById('aiReviewBox').innerHTML = `
+        <h4>🤖 Review AI Guru Speaking</h4>
+        <p>${(data.ai_review || 'Review AI belum tersimpan.').replace(/\n/g, '<br>')}</p>
+    `;
+
+    return true;
+}
 
 function escapeHTML(text) {
     return String(text || '')
@@ -738,7 +831,32 @@ async function processScoring(confidence) {
     const usedIndexes = new Set();
 
     target.forEach(tw => {
-        const foundIndex = input.findIndex((iw, idx) => iw === tw && !usedIndexes.has(idx));
+       function similarity(a, b) {
+    if (a === b) return 1;
+
+    const maxLen = Math.max(a.length, b.length);
+    if (maxLen === 0) return 1;
+
+    let same = 0;
+    const minLen = Math.min(a.length, b.length);
+
+    for (let i = 0; i < minLen; i++) {
+        if (a[i] === b[i]) same++;
+    }
+
+    return same / maxLen;
+}
+
+const foundIndex = input.findIndex((iw, idx) => {
+    if (usedIndexes.has(idx)) return false;
+
+    return (
+        iw === tw ||
+        iw.includes(tw) ||
+        tw.includes(iw) ||
+        similarity(iw, tw) >= 0.65
+    );
+});
         if (foundIndex >= 0) {
             usedIndexes.add(foundIndex);
             evalHtml += `<span class="word-eval word-correct">${tw}</span> `;
@@ -825,16 +943,18 @@ aiBox.innerHTML = `
         localStorage.setItem('paham_trial_count', trialLeft);
         updateTrialStatus();
     } else {
-        await _supabase.from('practice_records').insert([{
-            user_id: currentUser.id,
-            material_id: currentMaterial.id,
-            accuracy: acc,
-            pronunciation: pro,
-            fluency: flu,
-            final_score: final,
-            status: grade,
-            attempt_type: currentMaterial.category
-        }]);
+       await _supabase.from('practice_records').insert([{
+    user_id: currentUser.id,
+    material_id: currentMaterial.id,
+    accuracy: acc,
+    pronunciation: pro,
+    fluency: flu,
+    final_score: final,
+    status: grade,
+    attempt_type: currentMaterial.category,
+    transcript: lastTranscript,
+    ai_review: aiReview
+}]);
     }
 
     updateCategoryButtons();
@@ -844,35 +964,61 @@ aiBox.innerHTML = `
 // --- HISTORY & ADMIN ---
 async function loadHistory() {
     if (!currentUser) {
-        document.getElementById('historyList').innerHTML = '<div class="history-item"><b>Login dulu untuk melihat riwayat cloud.</b></div>';
+        document.getElementById('historyList').innerHTML =
+            '<div class="history-item"><b>Login dulu untuk melihat riwayat cloud.</b></div>';
         return;
     }
 
-    const { data } = await _supabase
+    const { data, error } = await _supabase
         .from('practice_records')
-        .select('*, materials(title, category)')
+        .select('*, materials(title, category, content)')
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false });
 
+    if (error) {
+        document.getElementById('historyList').innerHTML =
+            '<div class="history-item"><b>Gagal memuat riwayat.</b></div>';
+        console.error(error);
+        return;
+    }
+
     if (data && data.length) {
         document.getElementById('historyList').innerHTML = data.map(h => `
-            <div class="history-item">
-                <div>
-                    <b>${h.materials?.category || h.attempt_type}: ${h.materials?.title || 'Materi'}</b><br>
-                    <small>${new Date(h.created_at).toLocaleString('id-ID')}</small><br>
-                    <small>Pronunciation ${h.pronunciation}% • Fluency ${h.fluency}% • Accuracy ${h.accuracy}%</small>
+            <div class="history-item" style="display:block;">
+                <div style="display:flex; justify-content:space-between; gap:12px;">
+                    <div>
+                        <b>${h.materials?.category || h.attempt_type}: ${h.materials?.title || 'Materi'}</b><br>
+                        <small>${new Date(h.created_at).toLocaleString('id-ID')}</small>
+                    </div>
+                    <div style="text-align:right;">
+                        <b style="color:var(--primary); font-size:1.5rem;">${h.final_score}</b><br>
+                        <small style="color:${(h.final_score >= KKM) ? 'var(--success)' : 'var(--error)'}">${h.status}</small>
+                    </div>
                 </div>
-                <div style="text-align:right;">
-                    <b style="color:var(--primary); font-size:1.4rem;">${h.final_score}</b><br>
-                    <small style="color:${(h.final_score >= KKM) ? 'var(--success)' : 'var(--error)'}">${h.status}</small>
+
+                <div style="margin-top:14px; font-size:.85rem; color:var(--sub); line-height:1.7;">
+                    <b>Target:</b> ${h.materials?.content || '-'}<br>
+                    <b>Transcript:</b> ${h.transcript || '-'}<br>
+                    <b>Pronunciation:</b> ${h.pronunciation}% • 
+                    <b>Fluency:</b> ${h.fluency}% • 
+                    <b>Accuracy:</b> ${h.accuracy}%
+                </div>
+
+                <div style="margin-top:14px; padding:14px; border-radius:16px; background:#f8fafc; border:1px solid #e2e8f0;">
+                    <b>🤖 Review AI:</b><br>
+                    <span style="font-size:.88rem; color:var(--sub); line-height:1.7;">
+                        ${(h.ai_review || 'Review AI belum tersimpan.').replace(/\n/g, '<br>')}
+                    </span>
                 </div>
             </div>
         `).join('');
     } else {
-        document.getElementById('historyList').innerHTML = '<div class="history-item"><b>Belum ada riwayat latihan.</b></div>';
+        document.getElementById('historyList').innerHTML =
+            '<div class="history-item"><b>Belum ada riwayat latihan.</b></div>';
     }
 }
 
+   
 async function saveNewMaterial() {
     const title = document.getElementById('mTitle').value.trim();
     const content = document.getElementById('mContent').value.trim();
