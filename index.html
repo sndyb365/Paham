@@ -628,62 +628,121 @@ function resetFeedbackOnly() {
 // --- SPEECH RECOGNITION ---
 // --- SPEECH RECOGNITION ---
 const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
 let recognition = null;
 let startTime = null;
 let lastTranscript = '';
 let isListening = false;
 let gotResult = false;
+let speechConfidence = 0.75;
+let scoreProcessed = false;
 
 function createRecognition() {
+
     const rec = new SpeechAPI();
+
     rec.lang = 'en-US';
-rec.interimResults = true;
-rec.continuous = true;
-rec.maxAlternatives = 3;
+
+    // MOBILE FRIENDLY
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.maxAlternatives = 3;
+
+    rec.onstart = () => {
+        console.log("Speech Started");
+    };
 
     rec.onresult = (e) => {
-    gotResult = true;
 
-    let finalText = '';
-    let interimText = '';
+        gotResult = true;
 
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-        const text = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-            finalText += text + ' ';
-        } else {
-            interimText += text + ' ';
+        let finalText = '';
+        let interimText = '';
+
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+
+            const text = e.results[i][0].transcript;
+
+            speechConfidence =
+                e.results[i][0].confidence || speechConfidence;
+
+            if (e.results[i].isFinal) {
+                finalText += text + ' ';
+            } else {
+                interimText += text + ' ';
+            }
         }
-    }
 
-    lastTranscript = (finalText || interimText).trim();
+        lastTranscript = (finalText || interimText).trim();
 
-    document.getElementById('wordFeedback').innerHTML =
-        `<p><b>Terdengar:</b><br>${lastTranscript}</p>`;
-};
+        document.getElementById('wordFeedback').innerHTML =
+        `
+        <p>
+            <b>Terdengar:</b><br>
+            ${lastTranscript}
+        </p>
+        `;
+    };
 
     rec.onerror = (e) => {
+
         console.error("Speech Error:", e.error);
+
         isListening = false;
 
         const btn = document.getElementById('micBtn');
+
         btn.classList.remove('active');
         btn.innerText = '🎙️ Mulai Latihan';
 
         document.getElementById('wordFeedback').innerHTML =
-            `<p>Suara tidak terbaca. Error: ${e.error}. Coba ulangi.</p>`;
+        `
+        <p>
+            Error mikrofon:
+            ${e.error}
+        </p>
+        `;
+
+        recognition = null;
     };
 
     rec.onend = () => {
+
+        console.log("Speech Ended");
+
         isListening = false;
 
         const btn = document.getElementById('micBtn');
+
         btn.classList.remove('active');
         btn.innerText = '🎙️ Mulai Latihan';
 
+        // FIX MOBILE
+        if (
+            !scoreProcessed &&
+            lastTranscript &&
+            lastTranscript.trim().length > 0
+        ) {
+
+            scoreProcessed = true;
+
+            processScoring(
+                speechConfidence || 0.75
+            );
+
+            recognition = null;
+            return;
+        }
+
         if (!gotResult) {
+
             document.getElementById('wordFeedback').innerHTML =
-                '<p>Suara belum terbaca. Coba bicara lebih dekat ke mikrofon dan jangan terlalu cepat.</p>';
+            `
+            <p>
+                Suara belum terbaca.
+                Coba bicara lebih dekat ke mikrofon.
+            </p>
+            `;
         }
 
         recognition = null;
@@ -698,14 +757,25 @@ document.getElementById('micBtn').onclick = function() {
     if (!currentUser && trialLeft <= 0) return openAuth();
 
    if (isListening && recognition) {
-    recognition.stop();
 
-    if (lastTranscript.trim()) {
-        setTimeout(() => processScoring(0.75), 300);
+    if (
+        !scoreProcessed &&
+        lastTranscript.trim()
+    ) {
+
+        scoreProcessed = true;
+
+        processScoring(
+            speechConfidence || 0.75
+        );
     }
+
+    recognition.stop();
 
     return;
 }
+scoreProcessed = false;
+speechConfidence = 0.75;
 
     recognition = createRecognition();
     isListening = true;
