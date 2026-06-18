@@ -9,6 +9,48 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
 
     <style>
+        .capstone-footer{
+    margin-top:40px;
+    padding:24px;
+    text-align:center;
+
+    border-top:1px solid rgba(0,0,0,.08);
+
+    background:rgba(255,255,255,.7);
+    backdrop-filter:blur(12px);
+    border-radius:24px;
+
+    max-width:1180px;
+    width:calc(100% - 32px);
+    margin-left:auto;
+    margin-right:auto;
+    margin-bottom:20px;
+
+    box-shadow:0 10px 30px rgba(0,0,0,.08);
+}
+
+.capstone-title{
+    font-size:18px;
+    font-weight:800;
+    color:var(--primary);
+}
+
+.capstone-title span{
+    display:block;
+    margin-top:6px;
+
+    font-size:13px;
+    color:var(--sub);
+    font-weight:600;
+}
+
+.capstone-team{
+    margin-top:12px;
+
+    font-size:14px;
+    color:var(--text);
+    font-weight:600;
+}
         :root { 
             --primary: #6d5dfc;
             --primary-2: #18a8ff;
@@ -234,13 +276,12 @@
 <main>
     <section id="lab" class="page active">
         <div class="hero-kids">
-            <h1>PAHAM: Smart Speaking Lab Berbasis Web Speech API 🎤</h1>
+            <h1>PAHAM: Pronunciation Analysis & Holistic Articulation Monitor</h1>
             <p>Latihan speaking Bahasa Inggris berbasis level, evaluasi otomatis, dan monitoring progres sesuai indikator kompetensi SMK: pronunciation, fluency, dan accuracy.</p>
             <div class="hero-pills">
                 <span>🎯 Pronunciation</span>
                 <span>⚡ Fluency</span>
                 <span>✅ Accuracy</span>
-                <span>📚 Monitoring Guru</span>
             </div>
         </div>
 
@@ -1103,5 +1144,21 @@ async function saveNewMaterial() {
 
 initApp();
 </script>
+<footer class="capstone-footer">
+    <div class="capstone-content">
+        <div class="capstone-title">
+            PAHAM
+            <span>
+                (Pronunciation Analysis & Holistic Articulation Monitor)
+            </span>
+        </div>
+
+        <div class="capstone-team">
+            Capstone Design Team:
+            <strong>Sandy Bimo Harjudanto</strong> &
+            <strong>Janeth Sharon Marini</strong>
+        </div>
+    </div>
+</footer>
 </body>
 </html>
